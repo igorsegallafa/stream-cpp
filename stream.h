@@ -4,6 +4,7 @@
 #undef max
 
 #include <algorithm>
+#include <numeric>
 #include <ranges>
 
 template<typename T>
@@ -26,6 +27,14 @@ struct StreamImpl
             Func(Value);
             return Value;
         });
+    }
+
+    /// Reduces the view to a single value using the provided function.
+    constexpr auto Reduce(auto InitialValue, auto Func)
+    {
+        auto Result = std::accumulate(View.begin(), View.end(), InitialValue, Func);
+        auto NewView = std::views::single(Result);
+        return StreamImpl<decltype(NewView)>{NewView};
     }
 
     /// Filters elements based on the provided predicate function.
@@ -61,6 +70,20 @@ struct StreamImpl
     constexpr auto Join()
     {
         auto NewView = View | std::views::join;
+        return StreamImpl<decltype(NewView)>{NewView};
+    }
+
+    /// Returns the keys of the view.
+    constexpr auto Keys()
+    {
+        auto NewView = View | std::views::keys;
+        return StreamImpl<decltype(NewView)>{NewView};
+    }
+
+    /// Returns the values of the view.
+    constexpr auto Values()
+    {
+        auto NewView = View | std::views::values;
         return StreamImpl<decltype(NewView)>{NewView};
     }
 
@@ -123,6 +146,12 @@ struct StreamImpl
         return *std::ranges::max_element(View.begin(), View.end());
     }
 
+    /// Returns the sum of all elements in the view.
+    constexpr auto Sum()
+    {
+        return std::accumulate(View.begin(), View.end(), 0);
+    }
+
     /// Checks if the view contains a specific value.
     constexpr auto Contains(auto Value)
     {
@@ -161,10 +190,14 @@ struct StreamImpl
     auto Collect()
     {
         std::vector<std::ranges::range_value_t<T>> Result;
-        for (auto Value : View)
+    
+        // Reserve space if the view size is known (e.g., random access or sized ranges)
+        if constexpr (std::ranges::sized_range<T>)
         {
-            Result.push_back(Value);
+            Result.reserve(std::ranges::distance(View));
         }
+        
+        std::ranges::copy(View, std::back_inserter(Result));
         return Result;
     }
 
